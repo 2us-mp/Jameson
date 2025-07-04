@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GTA-Lite: Triple Trouble</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: sans-serif; }
+    #menu, #howToPlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: #222; color: white; display: flex;
+      flex-direction: column; justify-content: center; align-items: center;
+      z-index: 10;
+    }
+    button {
+      margin: 10px; padding: 15px 30px; font-size: 20px; cursor: pointer;
+    }
+    #howToPlayContent {
+      max-width: 600px;
+      text-align: center;
+      font-size: 18px;
+      margin: 20px;
+    }
+  </style>
+</head>
+<body>
+<div id="menu">
+  <h1>GTA-Lite: Triple Trouble</h1>
+  <button onclick="startGame()">🎮 Play</button>
+  <button onclick="showHowTo()">📖 How to Play</button>
+</div>
+
+<div id="howToPlay" style="display:none;">
+  <h2>How to Play</h2>
+  <div id="howToPlayContent">
+    <p>🎮 Use Arrow Keys to move</p>
+    <p>🧍 Click 3 times fast to switch between Michael, Samantha, and Tommy</p>
+    <p>🚶 Characters animate when walking</p>
+    <p>📦 Explore the town with buildings, cars, and houses</p>
+  </div>
+  <button onclick="backToMenu()">🔙 Back</button>
+</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
+
+let scene, camera, renderer, characters = [], currentPlayerIndex = 0;
+let keys = {};
+let tapCount = 0, tapTimer;
+let gameStarted = false;
+
+function startGame() {
+  document.getElementById("menu").style.display = "none";
+  gameStarted = true;
+  if (!scene) init();
+}
+
+function showHowTo() {
+  document.getElementById("menu").style.display = "none";
+  document.getElementById("howToPlay").style.display = "flex";
+}
+
+function backToMenu() {
+  document.getElementById("howToPlay").style.display = "none";
+  document.getElementById("menu").style.display = "flex";
+}
+
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xa0d8ef);
+
+  camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+  camera.position.set(0, 10, -15);
+
+  renderer = new THREE.WebGLRenderer();
+  renderer.setSize(innerWidth, innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(200, 200),
+    new THREE.MeshLambertMaterial({ color: 0xaaaaaa })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  scene.add(ground);
+
+  const charColors = [0x00ff00, 0xff69b4, 0x3399ff];
+  ['Michael', 'Samantha', 'Tommy'].forEach((name, i) => {
+    const char = createCharacter(charColors[i]);
+    char.group.name = name;
+    char.group.visible = i === 0;
+    scene.add(char.group);
+    characters.push(char);
+  });
+
+  window.addEventListener('click', () => {
+    if (!gameStarted) return;
+    tapCount++;
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(() => {
+      if (tapCount >= 3) switchCharacter();
+      tapCount = 0;
+    }, 500);
+  });
+
+  window.addEventListener('keydown', (e) => keys[e.key] = true);
+  window.addEventListener('keyup', (e) => keys[e.key] = false);
+
+  addBuilding(-60, -60, 10, 6, 10, 0xffcc00);
+  addBuilding(-40, -60, 14, 6, 14, 0x0033aa);
+  addBuilding(-20, -60, 8, 5, 8, 0x999999);
+  addBuilding(0, -60, 10, 6, 10, 0x8844ff);
+  addBuilding(20, -60, 10, 6, 10, 0xff4444);
+
+  for (let i = 0; i < 50; i++) {
+    const x = -90 + (i % 10) * 20;
+    const z = -30 + Math.floor(i / 10) * 15;
+    const size = 6 + Math.random() * 2;
+    const col = Math.random() > 0.5 ? 0xffe0b3 : 0xc2c2d6;
+    addBuilding(x, z, size, 4, size, col);
+  }
+
+  for (let i = 0; i < 5; i++) addCar(-30 + i * 5, -45, 0xffffff);
+  for (let i = 0; i < 8; i++) addCar(-20 + i * 5, 20, 0x333333);
+
+  animate();
+}
+
+function switchCharacter() {
+  characters[currentPlayerIndex].group.visible = false;
+  currentPlayerIndex = (currentPlayerIndex + 1) % characters.length;
+  characters[currentPlayerIndex].group.visible = true;
+}
+
+function createCharacter(color) {
+  const group = new THREE.Group();
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 0.5), new THREE.MeshStandardMaterial({ color }));
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), new THREE.MeshStandardMaterial({ color: 0xffddaa }));
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1, 0.3), new THREE.MeshStandardMaterial({ color }));
+  const armR = armL.clone();
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), new THREE.MeshStandardMaterial({ color }));
+  const legR = legL.clone();
+
+  body.position.y = 2.25;
+  head.position.y = 3.4;
+  armL.position.set(-0.8, 2.4, 0);
+  armR.position.set(0.8, 2.4, 0);
+  legL.position.set(-0.4, 0.6, 0);
+  legR.position.set(0.4, 0.6, 0);
+
+  group.add(body, head, armL, armR, legL, legR);
+  group.position.set(0, 0, 0);
+
+  return { group, body, head, armL, armR, legL, legR, angle: 0 };
+}
+
+function addBuilding(x, z, w, h, d, color) {
+  const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color }));
+  b.position.set(x, h / 2, z);
+  scene.add(b);
+}
+
+function addCar(x, z, color) {
+  const car = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 4), new THREE.MeshLambertMaterial({ color }));
+  car.position.set(x, 0.5, z);
+  scene.add(car);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (!gameStarted) return;
+
+  const char = characters[currentPlayerIndex];
+  const speed = 0.2;
+  let moving = false;
+
+  if (keys['ArrowUp']) { char.group.position.z -= speed; moving = true; }
+  if (keys['ArrowDown']) { char.group.position.z += speed; moving = true; }
+  if (keys['ArrowLeft']) { char.group.position.x -= speed; moving = true; }
+  if (keys['ArrowRight']) { char.group.position.x += speed; moving = true; }
+
+  if (moving) {
+    char.angle += 0.2;
+    char.armL.rotation.z = Math.sin(char.angle) * 0.5;
+    char.armR.rotation.z = -Math.sin(char.angle) * 0.5;
+    char.legL.rotation.x = Math.sin(char.angle) * 0.5;
+    char.legR.rotation.x = -Math.sin(char.angle) * 0.5;
+  } else {
+    char.armL.rotation.z = 0;
+    char.armR.rotation.z = 0;
+    char.legL.rotation.x = 0;
+    char.legR.rotation.x = 0;
+  }
+
+  const camTarget = new THREE.Vector3(
+    char.group.position.x,
+    char.group.position.y + 5,
+    char.group.position.z - 10
+  );
+  camera.position.lerp(camTarget, 0.1);
+  camera.lookAt(char.group.position);
+
+  renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
